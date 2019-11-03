@@ -1,6 +1,18 @@
 # Midi-Scale-Enforcer
 Virtual MIDI bridge with an added filter for note/scale enforcing
 
+Run this program in your terminal and follow the instruction.
+
+It is recommended to use this program with a loopMidi device and pass through
+all the midi events from your midi input (any device that sends midi note 
+events) to your loopMidi device. You can plug the loopMidi device into a VST or
+synthesizer and filter out the notes you do not want on the scale you are 
+playing on.
+
+For a list of available scale progressions, you can run the program with the
+"scales" parameter.
+
+Enjoy!
 
 # BSD License 
 
