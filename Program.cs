@@ -76,7 +76,17 @@ namespace Midi_Scale_Enforcer {
         public static int[] LydianMinor = {2, 2, 2, 1, 2, 2};
 #endregion scales
 
-        private static List<string> NoteSeries = new List<string>{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+        public static List<string> NoteSeries = new List<string>{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
+        public static string GetNextNoteInScale(string name){
+            int degree = int.Parse(name.Last().ToString());
+            string note = name.Remove(name.Length - 1);
+            if(note == "G#")
+                return "A" + degree;
+            if(note == "B")
+                return "C" + (degree + 1);
+            return NoteSeries[NoteSeries.IndexOf(note)+1] + degree;
+        }
 
         public static int NoteNumberFromName(String noteName) {
             for(var i = 0; i < NoteSeries.Count; i++) {
@@ -95,9 +105,10 @@ namespace Midi_Scale_Enforcer {
             return scale.Contains(noteNumber);
         }
 
-        public static int[] InitScale(int[] scale, string root) {
+        public static (int[], string[]) InitScale(int[] scale, string root) {
             var rootNumber = NoteNumberFromName(root);
             var notes = new List<int>();
+            var noteNames = new List<string>();
             notes.Add(rootNumber);
             foreach(var i in scale) {
                 rootNumber = (rootNumber + i) % 12;
@@ -106,9 +117,10 @@ namespace Midi_Scale_Enforcer {
             Console.Write("Scale filtered on: ");
             foreach(var i in notes) {
                 Console.Write(NoteNameFromNumber(i) + " ");
+                noteNames.Add(NoteNameFromNumber(i));
             }
             Console.WriteLine("");
-            return notes.ToArray();
+            return (notes.ToArray(), noteNames.ToArray());
         }
     }
 
@@ -117,14 +129,22 @@ namespace Midi_Scale_Enforcer {
         static int midiOutDevice = -1;
         static MidiIn midiIn;
         static MidiOut midiOut;
+        static MainForm mainForm = new MainForm();
 
         static int[] scaleProgression;
 
         static void FilterNote(MidiEvent e) {
             var shouldSend = true;
 
-            if(e is NoteEvent && ((NoteEvent)e).CommandCode == MidiCommandCode.NoteOn)
+
+            if(e is NoteEvent && ((NoteEvent)e).CommandCode == MidiCommandCode.NoteOn) {
                 shouldSend = Scale.IsInScale(scaleProgression, ((NoteEvent)e).NoteName);
+                Program.mainForm.OnNotePressed(((NoteEvent)e).NoteName);
+            }
+
+            if(e is NoteEvent && ((NoteEvent)e).CommandCode == MidiCommandCode.NoteOff) {
+                Program.mainForm.OnNoteReleased(((NoteEvent)e).NoteName);
+            }
 
             if(shouldSend)
                 midiOut.Send(e.GetAsShortMessage());
@@ -372,7 +392,7 @@ namespace Midi_Scale_Enforcer {
 #endregion ScaleSelector
 
         static void Main(string[] args) {
-            if(args.Count() == 2 && args[1] == "scales") {
+            if(args.Count() == 1 && args[0] == "scales") {
                 PrintScaleList();
                 return;
             }
@@ -381,10 +401,13 @@ namespace Midi_Scale_Enforcer {
                 return;
             }
 
-            var midiInName = args[1];
-            var midiOutName = args[2];
-            var scale = args[3];
-            var rootNote = args[4].ToUpper();
+            var midiInName = args[0];
+            Console.WriteLine(midiInName);
+            var midiOutName = args[1];
+            Console.WriteLine(midiOutName);
+            var scale = args[2];
+            Console.WriteLine(scale);
+            var rootNote = args[3].ToUpper();
 
             for (var i = 0; i < MidiIn.NumberOfDevices; i++) {
                 if(MidiIn.DeviceInfo(i).ProductName == midiInName)
@@ -403,8 +426,8 @@ namespace Midi_Scale_Enforcer {
                 Console.WriteLine("[OUT] Device not found.");
                 return;
             }
-
-            scaleProgression = Scale.InitScale(GetScaleFromString(scale), rootNote);
+            
+            SetScale(scale, rootNote);
 
             midiIn = new MidiIn(midiInDevice);
             Console.WriteLine("[IN] Connected to " + MidiIn.DeviceInfo(midiInDevice).ProductName);
@@ -413,7 +436,15 @@ namespace Midi_Scale_Enforcer {
             midiIn.MessageReceived += midiIn_MessageReceived;
             midiIn.ErrorReceived += midiIn_ErrorReceived;
             midiIn.Start();
-            while(true);
+            mainForm.RootNotes.SelectedIndex = mainForm.RootNotes.Items.IndexOf(rootNote);
+            mainForm.ScaleList.SelectedIndex = mainForm.ScaleList.Items.IndexOf(scale);
+            mainForm.ShowDialog();
+        }
+
+        public static void SetScale(string scale, string rootNote) {
+            string[] noteNames;
+            (scaleProgression, noteNames) = Scale.InitScale(GetScaleFromString(scale), rootNote);
+            Program.mainForm.InitializeScale(noteNames);
         }
     }
 }
